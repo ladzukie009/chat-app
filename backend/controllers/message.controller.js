@@ -1,7 +1,8 @@
 import Conversation from "../models/conversation.model.js";
 import Message from "../models/message.model.js";
+import { getReceiverSocketId, io } from "../socket/socket.js";
 
-const sendMessage = async (req, res) => {
+export const sendMessage = async (req, res) => {
   try {
     const { message } = req.body;
     const { id: receiverId } = req.params;
@@ -27,20 +28,27 @@ const sendMessage = async (req, res) => {
       conversation.messages.push(newMessage._id);
     }
 
-    // socket.io functionalities here ...
-
-    // this will run in parallel -- it can save time for saving the datas
     // await conversation.save();
     // await newMessage.save();
+
+    // this will run in parallel
     await Promise.all([conversation.save(), newMessage.save()]);
 
-    res.status(200).json(newMessage);
+    // SOCKET IO FUNCTIONALITY WILL GO HERE
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (receiverSocketId) {
+      // io.to(<socket_id>).emit() used to send events to specific client
+      io.to(receiverSocketId).emit("newMessage", newMessage);
+    }
+
+    res.status(201).json(newMessage);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.log("Error in sendMessage controller: ", error.message);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
-const getMessages = async (req, res) => {
+export const getMessages = async (req, res) => {
   try {
     const { id: userToChatId } = req.params;
     const senderId = req.user._id;
@@ -59,5 +67,3 @@ const getMessages = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
-export { sendMessage, getMessages };
